@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Late Work Notifier</title>
+  <style>
+    :root{
+      --bg:#f7f5fb;
+      --panel:#ffffff;
+      --ink:#1f1a2b;
+      --muted:#6f5b9a;    /* muted purple */
+      --muted-2:#8a79b8; /* lighter accent */
+      --accent:#5d4a95;
+      --border:#e7e1f5;
+      --ok:#2d7a46;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;
+      color:var(--ink); background:linear-gradient(180deg,var(--bg),#fff);
+    }
+    .wrap{
+      max-width:720px; margin:40px auto; padding:16px;
+    }
+    .card{
+      background:var(--panel); border:1px solid var(--border); border-radius:16px;
+      box-shadow:0 6px 20px rgba(60,40,120,.08);
+      padding:20px;
+    }
+    h1{
+      font-size:1.25rem; margin:0 0 6px; color:var(--muted);
+    }
+    p.lead{ margin:0 0 18px; color:#4a4260 }
+    label{
+      display:block; font-weight:600; margin:14px 0 6px; color:#3a3158;
+    }
+    input, textarea, select{
+      width:100%; padding:12px 12px; font-size:1rem; color:var(--ink);
+      background:#fff; border:1px solid var(--border); border-radius:10px;
+      outline:none; transition:box-shadow .15s ease, border-color .15s ease;
+    }
+    input:focus, textarea:focus, select:focus{
+      border-color:var(--muted-2);
+      box-shadow:0 0 0 4px rgba(138,121,184,.18);
+    }
+    textarea{ min-height:120px; resize:vertical }
+    .row{ display:grid; grid-template-columns:1fr; gap:14px }
+    @media (min-width:640px){ .row.two{ grid-template-columns:1fr 1fr } }
+    .hint{ font-size:.85rem; color:#6b6680; margin-top:6px }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:18px }
+    button, .ghost{
+      appearance:none; border:none; cursor:pointer; font-weight:700;
+      padding:12px 16px; border-radius:12px; font-size:1rem
+    }
+    .primary{
+      background:var(--muted); color:#fff;
+    }
+    .primary:hover{ filter:brightness(.96) }
+    .ghost{
+      background:#f3effc; color:var(--muted);
+      border:1px solid var(--border);
+    }
+    .footer{
+      margin-top:14px; font-size:.9rem; color:#5e5874;
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap
+    }
+    .msg{ display:none; color:var(--ok); font-weight:600 }
+    .req{ color:var(--muted); font-weight:700 }
+    .tiny{ font-size:.85rem; color:#766c98 }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Late/Completed Assignment Notifier</h1>
+      <p class="lead">Fill this out to tell your teacher what was late and that it’s finished. All fields are <span class="req">required</span>.</p>
+
+      <form id="notifyForm">
+        <div class="row two">
+          <div>
+            <label for="studentName">Student Name (first &amp; last)</label>
+            <input id="studentName" name="studentName" type="text" autocomplete="name" required
+                   placeholder="e.g., Jordan Alvarez" />
+            <div class="hint tiny">Saved on this device for next time.</div>
+          </div>
+
+          <div>
+            <label for="teacher">Teacher</label>
+            <select id="teacher" name="teacher" required>
+              <option value="" selected disabled>Select your teacher</option>
+              <option value="hasperger@cusd.kahoks.org">Ms. Asperger</option>
+              <option value="ccomrie1@cusd.kahoks.org">Mr. Comrie</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="assignmentTitle">Assignment Title</label>
+        <input id="assignmentTitle" name="assignmentTitle" type="text" required
+               placeholder="e.g., Unit 2: Variables Quiz Retake" />
+
+        <label for="comment">Comment about the assignment</label>
+        <textarea id="comment" name="comment" required
+          placeholder="Example: I turned this in on Google Classroom today. It was late because I was absent on 9/15."></textarea>
+
+        <div class="actions">
+          <button type="submit" class="primary">Send Email</button>
+          <button type="button" class="ghost" id="copyBtn" title="Copy the email text">Copy message</button>
+        </div>
+
+        <div class="footer">
+          <span class="tiny">This opens your email with the message pre-filled.</span>
+          <span class="msg" id="copiedMsg">Copied!</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const form = document.getElementById('notifyForm');
+      const nameInput = document.getElementById('studentName');
+      const teacherSel = document.getElementById('teacher');
+      const titleInput = document.getElementById('assignmentTitle');
+      const commentInput = document.getElementById('comment');
+      const copyBtn = document.getElementById('copyBtn');
+      const copiedMsg = document.getElementById('copiedMsg');
+
+      // Load saved name
+      nameInput.value = localStorage.getItem('studentName') || '';
+      nameInput.addEventListener('change', () => {
+        localStorage.setItem('studentName', nameInput.value.trim());
+      });
+
+      function buildEmailLines(){
+        const teacherEmail = teacherSel.value;
+        const teacherName = teacherSel.options[teacherSel.selectedIndex]?.text || 'Teacher';
+        const student = nameInput.value.trim();
+        const assignment = titleInput.value.trim();
+        const comment = commentInput.value.trim();
+
+        const subject = `Late work update: ${assignment} — ${student}`;
+        const body =
+`Hello ${teacherName},
+
+This is to notify you that I have completed a late/missing assignment.
+
+Student: ${student}
+Assignment: ${assignment}
+
+Comment:
+${comment}
+
+Thank you.`;
+
+        return { teacherEmail, subject, body };
+      }
+
+      function mailtoHref({teacherEmail, subject, body}){
+        return `mailto:${encodeURIComponent(teacherEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if(!form.reportValidity()) return;
+
+        // persist name once more
+        localStorage.setItem('studentName', nameInput.value.trim());
+
+        const payload = buildEmailLines();
+        // Open default mail client / Gmail compose
+        window.location.href = mailtoHref(payload);
+      });
+
+      copyBtn.addEventListener('click', async () => {
+        if(!form.reportValidity()) return;
+        const {subject, body} = buildEmailLines();
+        const text = `Subject: ${subject}\n\n${body}`;
+        try{
+          await navigator.clipboard.writeText(text);
+          copiedMsg.style.display = 'inline';
+          setTimeout(()=> copiedMsg.style.display = 'none', 1600);
+        }catch(err){
+          // Fallback: prompt
+          window.prompt('Copy this message:', text);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
